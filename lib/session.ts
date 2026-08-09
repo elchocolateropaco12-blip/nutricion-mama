@@ -1,58 +1,38 @@
-/**
- * Sesión firmada con HMAC-SHA256.
- *
- * Usa Web Crypto en vez de `node:crypto` porque el middleware corre en el
- * runtime Edge, donde `node:crypto` no existe.
- *
- * La cookie no guarda datos: es `caducidad.firma`. Si alguien la manipula,
- * la firma deja de cuadrar. No hay sesiones en base de datos que mantener.
- */
+import { NextRequest } from 'next/server';
 
-const enc = new TextEncoder();
+export const COOKIE_NAME = 'app_session';
 
-async function hmacKey(secret: string) {
-  return crypto.subtle.importKey(
-    "raw",
+async function getSecretKey() {
+  const secret = process.env.APP_SECRET || 'clave-secreta-rodrigo-2026';
+  const enc = new TextEncoder();
+  return await crypto.subtle.importKey(
+    'raw',
     enc.encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
+    { name: 'HMAC', hash: 'SHA-256' },
     false,
-    ["sign"]
+    ['sign', 'verify']
   );
 }
 
-function b64url(buf: ArrayBuffer): string {
-  const bytes = new Uint8Array(buf);
-  let bin = "";
-  for (const b of bytes) bin += String.fromCharCode(b);
-  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+export async function createSessionToken(): Promise<string> {
+  const payload = 'authenticated_user';
+  const key = await getSecretKey();
+  const enc = new TextEncoder();
+  const signature = await crypto.subtle.sign('HMAC', key, enc.encode(payload));
+  const hashArray = Array.from(new Uint8Array(signature));
+  const hashHex = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+  return `${payload}.${hashHex}`;
 }
 
-/** Comparación en tiempo constante: no filtra por dónde falla. */
-export function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
-}
+export async function verifySession(req: NextRequest): Promise<boolean> {
+  const cookie = req.cookies.get(COOKIE_NAME);
+  if (!cookie?.value) return false;
 
-export async function signSession(expiresAt: number, secret: string): Promise<string> {
-  const key = await hmacKey(secret);
-  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(String(expiresAt)));
-  return `${expiresAt}.${b64url(sig)}`;
-}
+  const [payload, signatureHex] = cookie.value.split('.');
+  if (!payload || !signatureHex) return false;
 
-export async function verifySession(
-  value: string | undefined,
-  secret: string
-): Promise<boolean> {
-  if (!value) return false;
-  const dot = value.indexOf(".");
-  if (dot < 1) return false;
-
-  const expiresAt = Number(value.slice(0, dot));
-  if (!Number.isFinite(expiresAt) || expiresAt < Date.now()) return false;
-
-  return timingSafeEqual(await signSession(expiresAt, secret), value);
+  const expectedToken = await createSessionToken();
+  return cookie.value === expectedToken;
 }
 
 export const SESSION_COOKIE = "nm_sesion";

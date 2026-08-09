@@ -1,5 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifySession } from '@/lib/session';
+
+const COOKIE_NAME = 'app_session';
+
+async function verifyCookie(cookieValue: string | undefined): Promise<boolean> {
+  if (!cookieValue) return false;
+
+  const secret = process.env.APP_SECRET || 'clave-secreta-rodrigo-2026';
+  const payload = 'authenticated_user';
+
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw',
+    enc.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+
+  const signature = await crypto.subtle.sign('HMAC', key, enc.encode(payload));
+  const hashHex = Array.from(new Uint8Array(signature))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+
+  const expectedToken = `${payload}.${hashHex}`;
+  return cookieValue === expectedToken;
+}
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -17,7 +42,8 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  const isValid = await verifySession(req);
+  const cookie = req.cookies.get(COOKIE_NAME)?.value;
+  const isValid = await verifyCookie(cookie);
 
   if (!isValid) {
     const loginUrl = new URL('/entrar', req.url);

@@ -22,7 +22,7 @@ export async function createSessionToken(customSecret?: string): Promise<string>
   return `${payload}.${hashHex}`;
 }
 
-export async function signSession(payload?: string, secret?: string): Promise<string> {
+export async function signSession(payload?: string | number, secret?: string): Promise<string> {
   return createSessionToken(secret);
 }
 

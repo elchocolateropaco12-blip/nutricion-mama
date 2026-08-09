@@ -1,9 +1,10 @@
 import { NextRequest } from 'next/server';
 
 export const COOKIE_NAME = 'app_session';
+export const SESSION_COOKIE = 'app_session';
 
-async function getSecretKey() {
-  const secret = process.env.APP_SECRET || 'clave-secreta-rodrigo-2026';
+async function getSecretKey(customSecret?: string) {
+  const secret = customSecret || process.env.APP_SECRET || 'clave-secreta-rodrigo-2026';
   const enc = new TextEncoder();
   return await crypto.subtle.importKey(
     'raw',
@@ -14,9 +15,9 @@ async function getSecretKey() {
   );
 }
 
-export async function createSessionToken(): Promise<string> {
+export async function createSessionToken(customSecret?: string): Promise<string> {
   const payload = 'authenticated_user';
-  const key = await getSecretKey();
+  const key = await getSecretKey(customSecret);
   const enc = new TextEncoder();
   const signature = await crypto.subtle.sign('HMAC', key, enc.encode(payload));
   const hashArray = Array.from(new Uint8Array(signature));
@@ -24,16 +25,23 @@ export async function createSessionToken(): Promise<string> {
   return `${payload}.${hashHex}`;
 }
 
-export async function verifySession(req: NextRequest): Promise<boolean> {
-  const cookie = req.cookies.get(COOKIE_NAME);
-  if (!cookie?.value) return false;
+export async function verifySession(
+  tokenOrReq?: string | NextRequest | null,
+  customSecret?: string
+): Promise<boolean> {
+  let token: string | undefined;
 
-  const [payload, signatureHex] = cookie.value.split('.');
+  if (typeof tokenOrReq === 'string') {
+    token = tokenOrReq;
+  } else if (tokenOrReq && 'cookies' in tokenOrReq) {
+    token = tokenOrReq.cookies.get(COOKIE_NAME)?.value || tokenOrReq.cookies.get('app_session')?.value;
+  }
+
+  if (!token) return false;
+
+  const [payload, signatureHex] = token.split('.');
   if (!payload || !signatureHex) return false;
 
-  const expectedToken = await createSessionToken();
-  return cookie.value === expectedToken;
+  const expectedToken = await createSessionToken(customSecret);
+  return token === expectedToken;
 }
-
-export const SESSION_COOKIE = "nm_sesion";
-export const SESSION_DAYS = 365;

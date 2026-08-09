@@ -1,5 +1,3 @@
-import { NextRequest } from 'next/server';
-
 export const COOKIE_NAME = 'app_session';
 export const SESSION_COOKIE = 'app_session';
 export const SESSION_DAYS = 365;
@@ -13,7 +11,7 @@ export async function createSessionToken(customSecret?: string): Promise<string>
     enc.encode(secret),
     { name: 'HMAC', hash: 'SHA-256' },
     false,
-    ['sign', 'verify']
+    ['sign']
   );
   const signature = await crypto.subtle.sign('HMAC', key, enc.encode(payload));
   const hashHex = Array.from(new Uint8Array(signature))
@@ -22,7 +20,7 @@ export async function createSessionToken(customSecret?: string): Promise<string>
   return `${payload}.${hashHex}`;
 }
 
-export async function signSession(payload?: string | number, secret?: string): Promise<string> {
+export async function signSession(payload?: any, secret?: string): Promise<string> {
   return createSessionToken(secret);
 }
 
@@ -30,20 +28,9 @@ export function timingSafeEqual(a: string, b: string): boolean {
   return a === b;
 }
 
-export async function verifySession(
-  reqOrToken?: NextRequest | string | null,
-  customSecret?: string
-): Promise<boolean> {
-  let token: string | undefined;
-
-  if (typeof reqOrToken === 'string') {
-    token = reqOrToken;
-  } else if (reqOrToken && 'cookies' in reqOrToken) {
-    token = reqOrToken.cookies.get(COOKIE_NAME)?.value || reqOrToken.cookies.get(SESSION_COOKIE)?.value;
-  }
-
-  if (!token) return false;
-
+export async function verifySession(tokenOrReq?: any, customSecret?: string): Promise<boolean> {
+  if (!tokenOrReq) return false;
   const expectedToken = await createSessionToken(customSecret);
+  const token = typeof tokenOrReq === 'string' ? tokenOrReq : tokenOrReq?.cookies?.get(COOKIE_NAME)?.value;
   return token === expectedToken;
 }

@@ -4,15 +4,14 @@ export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
-    const mealType = formData.get('meal_type') as string || 'comida';
 
     if (!file) {
-      return NextResponse.json({ error: 'No se ha proporcionado imagen' }, { status: 400 });
+      return NextResponse.json({ error: 'No se ha subido ningún archivo' }, { status: 400 });
     }
 
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      return NextResponse.json({ error: 'Falta la API Key de Gemini' }, { status: 500 });
+      return NextResponse.json({ error: 'Falta configurar GEMINI_API_KEY en Vercel' }, { status: 500 });
     }
 
     const bytes = await file.arrayBuffer();
@@ -20,22 +19,22 @@ export async function POST(req: NextRequest) {
     const mimeType = file.type || 'image/jpeg';
 
     const promptText = `
-Analiza la siguiente imagen de comida para una persona de 52 años en tratamiento oncológico.
-Identifica el plato y calcula sus valores nutricionales aproximados.
+Analiza detenidamente esta fotografía de un plato de comida.
+Identifica los ingredientes visibles y calcula de forma realista los valores nutricionales totales del plato.
 
-Responde ÚNICAMENTE en formato JSON plano con este esquema exacto, sin bloques de código ni markdown:
+Responde ÚNICAMENTE en formato JSON plano estricto con esta estructura exacta, sin texto previo ni posterior, sin bloques markdown:
 {
-  "dish_name": "Nombre descriptivo del plato",
-  "calories": 350,
-  "proteins_g": 25,
-  "fats_g": 10,
-  "carbs_g": 40,
-  "fiber_g": 4
+  "dish_name": "Nombre exacto del plato identificado",
+  "calories": 450,
+  "proteins_g": 30,
+  "fats_g": 15,
+  "carbs_g": 45,
+  "fiber_g": 5
 }
 `;
 
     const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -59,48 +58,28 @@ Responde ÚNICAMENTE en formato JSON plano con este esquema exacto, sin bloques 
 
     if (!geminiRes.ok) {
       const errText = await geminiRes.text();
-      console.error('Error en Gemini:', errText);
-      return NextResponse.json({
-        dish_name: 'Plato personalizado',
-        calories: 350,
-        proteins_g: 20,
-        fats_g: 10,
-        carbs_g: 40,
-        fiber_g: 4,
-        image_url: 'https://images.unsplash.com/photo-1498837167922-ddd27525d352?w=400&auto=format&fit=crop&q=80'
-      });
+      console.error('Error API Gemini:', errText);
+      return NextResponse.json({ error: `Error en la API de Gemini: ${geminiRes.status}` }, { status: 500 });
     }
 
     const geminiData = await geminiRes.json();
     const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    
-    let parsedJson: any = {};
-    try {
-      const cleanJsonStr = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
-      parsedJson = JSON.parse(cleanJsonStr);
-    } catch {
-      parsedJson = {
-        dish_name: 'Plato analizado por foto',
-        calories: 350,
-        proteins_g: 20,
-        fats_g: 10,
-        carbs_g: 40,
-        fiber_g: 4
-      };
-    }
+
+    const cleanJsonStr = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+    const parsedJson = JSON.parse(cleanJsonStr);
 
     return NextResponse.json({
       dish_name: parsedJson.dish_name || 'Plato analizado',
-      calories: Number(parsedJson.calories) || 350,
-      proteins_g: Number(parsedJson.proteins_g) || 20,
+      calories: Number(parsedJson.calories) || 300,
+      proteins_g: Number(parsedJson.proteins_g) || 15,
       fats_g: Number(parsedJson.fats_g) || 10,
-      carbs_g: Number(parsedJson.carbs_g) || 40,
-      fiber_g: Number(parsedJson.fiber_g) || 4,
+      carbs_g: Number(parsedJson.carbs_g) || 30,
+      fiber_g: Number(parsedJson.fiber_g) || 3,
       image_url: `data:${mimeType};base64,${base64Image}`
     });
 
   } catch (error: any) {
-    console.error('Error en process-photo:', error);
-    return NextResponse.json({ error: error.message || 'Error interno' }, { status: 500 });
+    console.error('Error interno:', error);
+    return NextResponse.json({ error: error.message || 'Error al procesar la foto' }, { status: 500 });
   }
 }

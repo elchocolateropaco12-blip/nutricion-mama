@@ -19,12 +19,11 @@ export async function POST(req: NextRequest) {
     const mimeType = file.type || 'image/jpeg';
 
     const promptText = `
-Analiza detenidamente la fotografía de este plato de comida.
-Identifica los ingredientes visibles y realiza un cálculo nutricional preciso.
+Analiza la imagen de este plato de comida. Identifica ingredientes y calcula valores nutricionales aproximados.
 
-Responde ÚNICAMENTE un objeto JSON plano con la siguiente estructura (sin markdown ni bloques \`\`\`json):
+Responde ÚNICAMENTE en formato JSON plano sin bloques de código ni markdown:
 {
-  "dish_name": "Nombre detallado del plato",
+  "dish_name": "Nombre descriptivo del plato",
   "calories": 400,
   "proteins_g": 25,
   "fats_g": 12,
@@ -33,9 +32,20 @@ Responde ÚNICAMENTE un objeto JSON plano con la siguiente estructura (sin markd
 }
 `;
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${apiKey}`,
-      {
+    // Lista de modelos a probar en orden de preferencia
+    const candidateModels = [
+      'gemini-1.5-flash',
+      'gemini-1.5-pro',
+      'gemini-2.0-flash',
+    ];
+
+    let lastErrorText = '';
+    let successData: any = null;
+
+    for (const model of candidateModels) {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+      const geminiRes = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -53,17 +63,25 @@ Responde ÚNICAMENTE un objeto JSON plano con la siguiente estructura (sin markd
             },
           ],
         }),
-      }
-    );
+      });
 
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error('Error Gemini API:', errText);
-      return NextResponse.json({ error: `Error ${response.status} en la API de Gemini` }, { status: response.status });
+      if (geminiRes.ok) {
+        successData = await geminiRes.json();
+        break;
+      } else {
+        lastErrorText = await geminiRes.text();
+        console.warn(`Falló modelo ${model}: status ${geminiRes.status}`);
+      }
     }
 
-    const result = await response.json();
-    const rawText = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    if (!successData) {
+      return NextResponse.json(
+        { error: `No se pudo conectar con Gemini: ${lastErrorText}` },
+        { status: 500 }
+      );
+    }
+
+    const rawText = successData.candidates?.[0]?.content?.parts?.[0]?.text || '';
     const cleanJson = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
     const parsed = JSON.parse(cleanJson);
 
@@ -74,11 +92,11 @@ Responde ÚNICAMENTE un objeto JSON plano con la siguiente estructura (sin markd
       fats_g: Number(parsed.fats_g) || 10,
       carbs_g: Number(parsed.carbs_g) || 40,
       fiber_g: Number(parsed.fiber_g) || 4,
-      image_url: `data:${mimeType};base64,${base64Image}`
+      image_url: `data:${mimeType};base64,${base64Image}`,
     });
 
   } catch (error: any) {
     console.error('Error process-photo:', error);
-    return NextResponse.json({ error: error.message || 'Error al procesar la foto' }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Error interno al procesar la imagen' }, { status: 500 });
   }
 }

@@ -1,21 +1,17 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 
 interface MealSlotCardProps {
   title: string;
   time: string;
   mealType: string;
-  entry?: {
-    dish_name: string;
-    calories: number;
-    proteins_g: number;
-    fats_g: number;
-    image_url?: string;
-  } | null;
+  entry?: any;
   onSelect: () => void;
-  onRemove?: () => void;
+  onRemove: () => void;
 }
+
+const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1498837167922-ddd27525d352?w=500&auto=format&fit=crop&q=80';
 
 export default function MealSlotCard({
   title,
@@ -24,46 +20,53 @@ export default function MealSlotCard({
   onSelect,
   onRemove,
 }: MealSlotCardProps) {
+  const [imgSrc, setImgSrc] = useState<string>(entry?.image_url || FALLBACK_IMAGE);
+
+  React.useEffect(() => {
+    if (entry?.image_url) {
+      setImgSrc(entry.image_url);
+    }
+  }, [entry?.image_url]);
+
   return (
-    <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200">
-      <div className="flex justify-between items-center mb-2">
+    <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 space-y-3">
+      <div className="flex justify-between items-center">
         <div>
-          <h3 className="text-lg font-bold text-slate-800">{title}</h3>
-          <span className="text-xs text-slate-500">{time}</span>
+          <h2 className="text-lg font-bold text-slate-800">{title}</h2>
+          <p className="text-xs text-slate-400">{time}</p>
         </div>
-        {entry && onRemove && (
+        {entry ? (
           <button
             onClick={onRemove}
-            className="text-xs text-rose-600 bg-rose-50 px-2 py-1 rounded-lg font-medium"
+            className="text-xs px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg font-medium"
           >
             Cambiar
+          </button>
+        ) : (
+          <button
+            onClick={onSelect}
+            className="text-xs px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg font-bold"
+          >
+            + Registrar tu {title.toLowerCase()}
           </button>
         )}
       </div>
 
-      {entry ? (
-        <div className="flex items-center gap-3 bg-slate-50 p-3 rounded-xl">
-          {entry.image_url && (
-            <img
-              src={entry.image_url}
-              alt={entry.dish_name}
-              className="w-16 h-16 object-cover rounded-lg"
-            />
-          )}
+      {entry && (
+        <div className="flex items-center space-x-3 pt-2 border-t border-slate-50">
+          <img
+            src={imgSrc}
+            alt={entry.dish_name}
+            onError={() => setImgSrc(FALLBACK_IMAGE)}
+            className="w-16 h-16 rounded-xl object-cover bg-slate-100"
+          />
           <div>
-            <p className="font-semibold text-slate-800 text-sm">{entry.dish_name}</p>
-            <p className="text-xs text-slate-600 mt-1">
+            <h3 className="font-semibold text-slate-800 text-sm">{entry.dish_name}</h3>
+            <p className="text-xs text-slate-500 mt-1">
               {entry.calories} kcal | P: {entry.proteins_g}g | G: {entry.fats_g}g
             </p>
           </div>
         </div>
-      ) : (
-        <button
-          onClick={onSelect}
-          className="w-full py-4 border-2 border-dashed border-indigo-200 rounded-xl text-indigo-600 font-semibold text-sm bg-indigo-50/50 hover:bg-indigo-50 transition"
-        >
-          + Registra tu {title.toLowerCase()}
-        </button>
       )}
     </div>
   );

@@ -32,55 +32,34 @@ Responde ÚNICAMENTE en formato JSON plano sin bloques de código ni markdown:
 }
 `;
 
-    // Lista de modelos a probar en orden de preferencia
-    const candidateModels = [
-      'gemini-1.5-flash',
-      'gemini-1.5-pro',
-      'gemini-2.0-flash',
-    ];
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
-    let lastErrorText = '';
-    let successData: any = null;
-
-    for (const model of candidateModels) {
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-
-      const geminiRes = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                { text: promptText },
-                {
-                  inline_data: {
-                    mime_type: mimeType,
-                    data: base64Image,
-                  },
+    const geminiRes = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              { text: promptText },
+              {
+                inline_data: {
+                  mime_type: mimeType,
+                  data: base64Image,
                 },
-              ],
-            },
-          ],
-        }),
-      });
+              },
+            ],
+          },
+        ],
+      }),
+    });
 
-      if (geminiRes.ok) {
-        successData = await geminiRes.json();
-        break;
-      } else {
-        lastErrorText = await geminiRes.text();
-        console.warn(`Falló modelo ${model}: status ${geminiRes.status}`);
-      }
+    if (!geminiRes.ok) {
+      const errorData = await geminiRes.text();
+      return NextResponse.json({ error: `Error ${geminiRes.status} en Gemini: ${errorData}` }, { status: geminiRes.status });
     }
 
-    if (!successData) {
-      return NextResponse.json(
-        { error: `No se pudo conectar con Gemini: ${lastErrorText}` },
-        { status: 500 }
-      );
-    }
-
+    const successData = await geminiRes.json();
     const rawText = successData.candidates?.[0]?.content?.parts?.[0]?.text || '';
     const cleanJson = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
     const parsed = JSON.parse(cleanJson);

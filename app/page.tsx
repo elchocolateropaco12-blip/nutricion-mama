@@ -71,14 +71,61 @@ export default function HomePage() {
     fileInputRef.current?.click();
   };
 
+  const compressImage = (file: File): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 1024;
+          const MAX_HEIGHT = 1024;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+          canvas.toBlob(
+            (blob) => {
+              if (blob) resolve(blob);
+              else reject(new Error('Error al comprimir la imagen'));
+            },
+            'image/jpeg',
+            0.7
+          );
+        };
+      };
+      reader.onerror = (error) => reject(error);
+    });
+  };
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !activeSlot) return;
 
     setUploadingPhoto(true);
     try {
+      const compressedBlob = await compressImage(file);
+      const compressedFile = new File([compressedBlob], 'photo.jpg', { type: 'image/jpeg' });
+
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('file', compressedFile);
       formData.append('meal_type', activeSlot);
 
       const res = await fetch('/api/process-photo', {
@@ -86,21 +133,21 @@ export default function HomePage() {
         body: formData,
       });
 
-      if (!res.ok) {
-        throw new Error('Error al procesar la foto');
-      }
-
       const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Error al procesar la foto');
+      }
 
       const newEntry = {
         meal_type: activeSlot,
-        dish_name: data.dish_name || 'Plato analizado por foto',
-        calories: data.calories || 300,
-        proteins_g: data.proteins_g || 15,
-        fats_g: data.fats_g || 10,
-        carbs_g: data.carbs_g || 30,
-        fiber_g: data.fiber_g || 3,
-        image_url: data.image_url || 'https://images.unsplash.com/photo-1498837167922-ddd27525d352?w=500&auto=format&fit=crop&q=80',
+        dish_name: data.dish_name,
+        calories: data.calories,
+        proteins_g: data.proteins_g,
+        fats_g: data.fats_g,
+        carbs_g: data.carbs_g,
+        fiber_g: data.fiber_g,
+        image_url: data.image_url,
       };
 
       await fetch('/api/entries', {

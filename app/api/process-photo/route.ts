@@ -32,31 +32,46 @@ Responde ÚNICAMENTE en formato JSON plano sin bloques de código ni markdown:
 }
 `;
 
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    const endpoints = [
+      `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent?key=${apiKey}`
+    ];
 
-    const geminiRes = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              { text: promptText },
-              {
-                inline_data: {
-                  mime_type: mimeType,
-                  data: base64Image,
+    let geminiRes: Response | null = null;
+    let lastError = '';
+
+    for (const url of endpoints) {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                { text: promptText },
+                {
+                  inline_data: {
+                    mime_type: mimeType,
+                    data: base64Image,
+                  },
                 },
-              },
-            ],
-          },
-        ],
-      }),
-    });
+              ],
+            },
+          ],
+        }),
+      });
 
-    if (!geminiRes.ok) {
-      const errorData = await geminiRes.text();
-      return NextResponse.json({ error: `Error ${geminiRes.status} en Gemini: ${errorData}` }, { status: geminiRes.status });
+      if (res.ok) {
+        geminiRes = res;
+        break;
+      } else {
+        lastError = await res.text();
+      }
+    }
+
+    if (!geminiRes) {
+      return NextResponse.json({ error: `Error en Gemini: ${lastError}` }, { status: 500 });
     }
 
     const successData = await geminiRes.json();

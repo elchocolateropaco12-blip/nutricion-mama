@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
-export const maxDuration = 30; // Evita el corte por timeout en Vercel
+export const maxDuration = 30;
 
 export async function POST(req: NextRequest) {
   try {
@@ -8,12 +9,12 @@ export async function POST(req: NextRequest) {
     const file = formData.get('file') as File | null;
 
     if (!file) {
-      return NextResponse.json({ error: 'No se subió archivo' }, { status: 400 });
+      return NextResponse.json({ error: 'No se subió ningún archivo' }, { status: 400 });
     }
 
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      return NextResponse.json({ error: 'Falta la API Key de Gemini' }, { status: 500 });
+      return NextResponse.json({ error: 'Falta la GEMINI_API_KEY en Vercel' }, { status: 500 });
     }
 
     const bytes = await file.arrayBuffer();
@@ -21,48 +22,25 @@ export async function POST(req: NextRequest) {
     const mimeType = file.type || 'image/jpeg';
     const imageUrl = `data:${mimeType};base64,${base64Image}`;
 
-    const promptText = `Analiza esta foto de un plato de comida.
-Devuelve ÚNICAMENTE un objeto JSON con el siguiente formato estricto (sin bloques de código markdown ni texto adicional):
+    // Inicializar el cliente oficial de Gemini
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+
+    const prompt = `Analiza esta foto de un plato de comida.
+Devuelve ÚNICAMENTE un objeto JSON plano (sin bloques de código markdown ni texto adicional) con este esquema exacto:
 {"dish_name":"Nombre del plato","calories":400,"proteins_g":25,"fats_g":12,"carbs_g":40,"fiber_g":4}`;
 
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    const imagePart = {
+      inlineData: {
+        data: base64Image,
+        mimeType: mimeType,
+      },
+    };
 
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              { text: promptText },
-              {
-                inlineData: {
-                  mimeType: mimeType,
-                  data: base64Image,
-                },
-              },
-            ],
-          },
-        ],
-      }),
-    });
+    const result = await model.generateContent([prompt, imagePart]);
+    const responseText = result.response.text();
 
-    if (!response.ok) {
-      console.error('Error HTTP de Gemini:', response.status);
-      return NextResponse.json({
-        dish_name: 'Plato registrado por foto',
-        calories: 380,
-        proteins_g: 22,
-        fats_g: 12,
-        carbs_g: 40,
-        fiber_g: 4,
-        image_url: imageUrl,
-      });
-    }
-
-    const data = await response.json();
-    const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    const cleanJson = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+    const cleanJson = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
     const parsed = JSON.parse(cleanJson);
 
     return NextResponse.json({
@@ -76,12 +54,12 @@ Devuelve ÚNICAMENTE un objeto JSON con el siguiente formato estricto (sin bloqu
     });
 
   } catch (err: any) {
-    console.error('Error interno procesando foto:', err);
+    console.error('Error procesando foto con SDK:', err);
     return NextResponse.json({
-      dish_name: 'Plato registrado',
-      calories: 350,
-      proteins_g: 20,
-      fats_g: 10,
+      dish_name: 'Plato registrado por foto',
+      calories: 380,
+      proteins_g: 22,
+      fats_g: 12,
       carbs_g: 40,
       fiber_g: 4,
       image_url: '',

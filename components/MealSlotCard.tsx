@@ -11,7 +11,7 @@ interface MealSlotCardProps {
   onRemove: () => void;
 }
 
-const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1498837167922-ddd27525d352?w=500&auto=format&fit=crop&q=80';
+const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1498837167922-ddd27525d352?w=400&auto=format&fit=crop&q=80';
 
 export default function MealSlotCard({
   title,
@@ -53,15 +53,17 @@ export default function MealSlotCard({
       </div>
 
       {entry && (
-        <div className="flex items-center space-x-3 pt-2 border-t border-slate-50">
-          <img
-            src={imgSrc}
-            alt={entry.dish_name}
-            onError={() => setImgSrc(FALLBACK_IMAGE)}
-            className="w-16 h-16 rounded-xl object-cover bg-slate-100"
-          />
-          <div>
-            <h3 className="font-semibold text-slate-800 text-sm">{entry.dish_name}</h3>
+        <div className="flex items-center space-x-3 pt-2 border-t border-slate-100">
+          <div className="w-16 h-16 min-w-[64px] min-h-[64px] max-w-[64px] max-h-[64px] overflow-hidden rounded-xl bg-slate-100 flex-shrink-0">
+            <img
+              src={imgSrc}
+              alt={entry.dish_name}
+              onError={() => setImgSrc(FALLBACK_IMAGE)}
+              className="w-full h-full object-cover"
+            />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="font-semibold text-slate-800 text-sm truncate">{entry.dish_name}</h3>
             <p className="text-xs text-slate-500 mt-1">
               {entry.calories} kcal | P: {entry.proteins_g}g | G: {entry.fats_g}g
             </p>

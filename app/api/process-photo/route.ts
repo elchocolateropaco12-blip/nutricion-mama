@@ -19,22 +19,22 @@ export async function POST(req: NextRequest) {
     const mimeType = file.type || 'image/jpeg';
 
     const promptText = `
-Analiza detenidamente esta fotografía de un plato de comida.
-Identifica los ingredientes visibles y calcula de forma realista los valores nutricionales totales del plato.
+Analiza detenidamente la fotografía de este plato de comida.
+Identifica los ingredientes visibles y realiza un cálculo nutricional preciso.
 
-Responde ÚNICAMENTE en formato JSON plano estricto con esta estructura exacta, sin texto previo ni posterior, sin bloques markdown:
+Responde ÚNICAMENTE un objeto JSON plano con la siguiente estructura (sin markdown ni bloques \`\`\`json):
 {
-  "dish_name": "Nombre exacto del plato identificado",
-  "calories": 450,
-  "proteins_g": 30,
-  "fats_g": 15,
+  "dish_name": "Nombre detallado del plato",
+  "calories": 400,
+  "proteins_g": 25,
+  "fats_g": 12,
   "carbs_g": 45,
   "fiber_g": 5
 }
 `;
 
-    const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -56,30 +56,29 @@ Responde ÚNICAMENTE en formato JSON plano estricto con esta estructura exacta, 
       }
     );
 
-    if (!geminiRes.ok) {
-      const errText = await geminiRes.text();
-      console.error('Error API Gemini:', errText);
-      return NextResponse.json({ error: `Error en la API de Gemini: ${geminiRes.status}` }, { status: 500 });
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error('Error Gemini API:', errText);
+      return NextResponse.json({ error: `Error ${response.status} en la API de Gemini` }, { status: response.status });
     }
 
-    const geminiData = await geminiRes.json();
-    const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
-
-    const cleanJsonStr = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
-    const parsedJson = JSON.parse(cleanJsonStr);
+    const result = await response.json();
+    const rawText = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const cleanJson = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+    const parsed = JSON.parse(cleanJson);
 
     return NextResponse.json({
-      dish_name: parsedJson.dish_name || 'Plato analizado',
-      calories: Number(parsedJson.calories) || 300,
-      proteins_g: Number(parsedJson.proteins_g) || 15,
-      fats_g: Number(parsedJson.fats_g) || 10,
-      carbs_g: Number(parsedJson.carbs_g) || 30,
-      fiber_g: Number(parsedJson.fiber_g) || 3,
+      dish_name: parsed.dish_name || 'Plato analizado',
+      calories: Number(parsed.calories) || 350,
+      proteins_g: Number(parsed.proteins_g) || 20,
+      fats_g: Number(parsed.fats_g) || 10,
+      carbs_g: Number(parsed.carbs_g) || 40,
+      fiber_g: Number(parsed.fiber_g) || 4,
       image_url: `data:${mimeType};base64,${base64Image}`
     });
 
   } catch (error: any) {
-    console.error('Error interno:', error);
+    console.error('Error process-photo:', error);
     return NextResponse.json({ error: error.message || 'Error al procesar la foto' }, { status: 500 });
   }
 }

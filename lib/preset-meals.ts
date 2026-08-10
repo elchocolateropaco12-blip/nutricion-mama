@@ -2,6 +2,7 @@ export interface PresetMeal {
   id: string;
   name: string;
   mealType: 'desayuno' | 'comida' | 'merienda' | 'cena';
+  meal_type: 'desayuno' | 'comida' | 'merienda' | 'cena';
   calories: number;
   proteins_g: number;
   fats_g: number;
@@ -16,6 +17,7 @@ export const PRESET_MEALS: PresetMeal[] = [
     id: 'desayuno-a',
     name: 'Gachas de Avena Proteicas con Manzana',
     mealType: 'desayuno',
+    meal_type: 'desayuno',
     calories: 380,
     proteins_g: 28,
     fats_g: 8,
@@ -27,6 +29,7 @@ export const PRESET_MEALS: PresetMeal[] = [
     id: 'desayuno-b',
     name: 'Tostadas de Centeno con Huevo y Aguacate',
     mealType: 'desayuno',
+    meal_type: 'desayuno',
     calories: 350,
     proteins_g: 18,
     fats_g: 16,
@@ -38,6 +41,7 @@ export const PRESET_MEALS: PresetMeal[] = [
     id: 'desayuno-c',
     name: 'Batido Nutritivo Densificado',
     mealType: 'desayuno',
+    meal_type: 'desayuno',
     calories: 320,
     proteins_g: 25,
     fats_g: 5,
@@ -51,6 +55,7 @@ export const PRESET_MEALS: PresetMeal[] = [
     id: 'comida-a',
     name: 'Pescado Blanco con Patata y Judías',
     mealType: 'comida',
+    meal_type: 'comida',
     calories: 480,
     proteins_g: 35,
     fats_g: 11.8,
@@ -62,6 +67,7 @@ export const PRESET_MEALS: PresetMeal[] = [
     id: 'comida-b',
     name: 'Ensalada de Pasta Templada con Pollo',
     mealType: 'comida',
+    meal_type: 'comida',
     calories: 520,
     proteins_g: 38,
     fats_g: 12,
@@ -75,6 +81,7 @@ export const PRESET_MEALS: PresetMeal[] = [
     id: 'merienda-a',
     name: 'Yogur Griego con Frutos Rojos',
     mealType: 'merienda',
+    meal_type: 'merienda',
     calories: 210,
     proteins_g: 15,
     fats_g: 6,
@@ -88,6 +95,7 @@ export const PRESET_MEALS: PresetMeal[] = [
     id: 'cena-a',
     name: 'Sopa de Verduras con Huevo Hervido',
     mealType: 'cena',
+    meal_type: 'cena',
     calories: 320,
     proteins_g: 18,
     fats_g: 11.8,
@@ -99,6 +107,7 @@ export const PRESET_MEALS: PresetMeal[] = [
     id: 'cena-b',
     name: 'Crema de Calabacín con Pollo Desmechado',
     mealType: 'cena',
+    meal_type: 'cena',
     calories: 340,
     proteins_g: 30,
     fats_g: 10,

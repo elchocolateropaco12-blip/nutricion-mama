@@ -54,12 +54,12 @@ export default function MealSlotCard({
 
       {entry && (
         <div className="flex items-center space-x-3 pt-2 border-t border-slate-100">
-          <div className="w-16 h-16 min-w-[64px] min-h-[64px] max-w-[64px] max-h-[64px] overflow-hidden rounded-xl bg-slate-100 flex-shrink-0">
+          <div style={{ width: '64px', height: '64px', minWidth: '64px', minHeight: '64px', maxWidth: '64px', maxHeight: '64px' }} className="overflow-hidden rounded-xl bg-slate-100 flex-shrink-0">
             <img
               src={imgSrc}
               alt={entry.dish_name}
               onError={() => setImgSrc(FALLBACK_IMAGE)}
-              className="w-full h-full object-cover"
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
             />
           </div>
           <div className="flex-1 min-w-0">

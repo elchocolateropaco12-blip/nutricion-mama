@@ -6,7 +6,12 @@ export async function POST(req: NextRequest) {
     const file = formData.get('file') as File | null;
 
     if (!file) {
-      return NextResponse.json({ error: 'No se ha subido ningún archivo' }, { status: 400 });
+      return NextResponse.json({ error: 'No se ha subido ninguna imagen' }, { status: 400 });
+    }
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return NextResponse.json({ error: 'Falta configurar GEMINI_API_KEY en Vercel' }, { status: 500 });
     }
 
     const bytes = await file.arrayBuffer();
@@ -14,91 +19,69 @@ export async function POST(req: NextRequest) {
     const mimeType = file.type || 'image/jpeg';
     const imageUrl = `data:${mimeType};base64,${base64Image}`;
 
-    const apiKey = process.env.GEMINI_API_KEY;
-
-    // Respuesta de respaldo garantizada para evitar bloqueos en la interfaz
-    const fallbackData = {
-      dish_name: 'Plato analizado por foto',
-      calories: 380,
-      proteins_g: 22,
-      fats_g: 12,
-      carbs_g: 40,
-      fiber_g: 4,
-      image_url: imageUrl,
-    };
-
-    if (!apiKey) {
-      return NextResponse.json(fallbackData);
-    }
-
     const promptText = `
-Analiza la imagen de este plato de comida. Identifica ingredientes y calcula valores nutricionales aproximados.
-
-Responde ÚNICAMENTE en formato JSON plano sin bloques de código ni markdown:
-{
-  "dish_name": "Nombre descriptivo del plato",
-  "calories": 400,
-  "proteins_g": 25,
-  "fats_g": 12,
-  "carbs_g": 45,
-  "fiber_g": 5
-}
+Analiza la imagen de este plato de comida. Identifica el nombre del plato, sus ingredientes visibles y calcula sus valores nutricionales aproximados.
 `;
 
-    const endpoints = [
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-      `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-    ];
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
-    for (const url of endpoints) {
-      try {
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [
+    const geminiRes = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              { text: promptText },
               {
-                parts: [
-                  { text: promptText },
-                  {
-                    inline_data: {
-                      mime_type: mimeType,
-                      data: base64Image,
-                    },
-                  },
-                ],
+                inline_data: {
+                  mime_type: mimeType,
+                  data: base64Image,
+                },
               },
             ],
-          }),
-        });
+          },
+        ],
+        generationConfig: {
+          response_mime_type: 'application/json',
+          response_schema: {
+            type: 'OBJECT',
+            properties: {
+              dish_name: { type: 'STRING', description: 'Nombre descriptivo e identificativo del plato' },
+              calories: { type: 'NUMBER', description: 'Calorías totales estimadas' },
+              proteins_g: { type: 'NUMBER', description: 'Gramos de proteína' },
+              fats_g: { type: 'NUMBER', description: 'Gramos de grasa' },
+              carbs_g: { type: 'NUMBER', description: 'Gramos de carbohidratos' },
+              fiber_g: { type: 'NUMBER', description: 'Gramos de fibra' },
+            },
+            required: ['dish_name', 'calories', 'proteins_g', 'fats_g', 'carbs_g', 'fiber_g'],
+          },
+        },
+      }),
+    });
 
-        if (res.ok) {
-          const data = await res.json();
-          const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-          const cleanJson = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
-          const parsed = JSON.parse(cleanJson);
-
-          return NextResponse.json({
-            dish_name: parsed.dish_name || fallbackData.dish_name,
-            calories: Number(parsed.calories) || fallbackData.calories,
-            proteins_g: Number(parsed.proteins_g) || fallbackData.proteins_g,
-            fats_g: Number(parsed.fats_g) || fallbackData.fats_g,
-            carbs_g: Number(parsed.carbs_g) || fallbackData.carbs_g,
-            fiber_g: Number(parsed.fiber_g) || fallbackData.fiber_g,
-            image_url: imageUrl,
-          });
-        }
-      } catch (e) {
-        console.warn('Error intentando endpoint de Gemini:', e);
-      }
+    if (!geminiRes.ok) {
+      const errText = await geminiRes.text();
+      console.error('Error en Gemini:', errText);
+      return NextResponse.json({ error: `Error ${geminiRes.status} de la API de Gemini` }, { status: geminiRes.status });
     }
 
-    // Si los servidores de IA no responden, se registra la foto sin interrumpir al usuario
-    return NextResponse.json(fallbackData);
+    const data = await geminiRes.json();
+    const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+    const parsed = JSON.parse(rawText);
+
+    return NextResponse.json({
+      dish_name: parsed.dish_name || 'Plato analizado por foto',
+      calories: Math.round(Number(parsed.calories)) || 350,
+      proteins_g: Math.round(Number(parsed.proteins_g)) || 20,
+      fats_g: Math.round(Number(parsed.fats_g)) || 10,
+      carbs_g: Math.round(Number(parsed.carbs_g)) || 40,
+      fiber_g: Math.round(Number(parsed.fiber_g)) || 4,
+      image_url: imageUrl,
+    });
 
   } catch (error: any) {
     console.error('Error process-photo:', error);
-    return NextResponse.json({ error: 'Error al procesar la foto' }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Error al procesar la imagen' }, { status: 500 });
   }
 }
